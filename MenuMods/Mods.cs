@@ -1,29 +1,30 @@
 ﻿
-using Photon.Pun;
-using UnityEngine;
-using Photon.Realtime;
+using ExitGames.Client.Photon;
+using Fusion;
 using GorillaNetworking;
-using System.Collections.Generic;
+using GorillaTag;
+using HarmonyLib;
+using J0kersTrollMenu.ModMenu;
 using J0kersTrollMenu.Notifications;
+using Photon.Pun;
+using Photon.Realtime;
+using PlayFab;
+using PlayFab.Internal;
+using System.Collections.Generic;
 using System.IO;
-using GorillaTagScripts;
-using System.Reflection;
+using UnityEngine;
+using UnityEngine.UI;
 
 namespace J0kersTrollMenu.MenuMods
 {
-    internal class Mods : MonoBehaviour
+    internal class Mods : MonoBehaviour // Cleaned Up A Bit =)
     {
-        static float beesDelay;
+        // Out bc its in like all the regions
         static VRRig VrRigPlayers = null;
         static bool CopyPlayer;
-        static bool bothHands;
-        static GameObject pointer;
-        static bool isFirstActivation = true;
-        static float activationTime = 0f;
-        static float activationDuration = 2f;
-        static bool isFirstOn = true;
+        static GameObject GunSphere;
 
-        #region VRRig Stuff
+        #region Get Stuff
 
         public static VRRig GetVRRigFromPlayer(Player p)
         {
@@ -35,8 +36,7 @@ namespace J0kersTrollMenu.MenuMods
         {
             foreach (VRRig vrrig in GorillaParent.instance.vrrigs)
             {
-                bool flag = !vrrig.isOfflineVRRig && vrrig.GetComponent<PhotonView>().Owner == player;
-                if (flag)
+                if (!vrrig.isOfflineVRRig && vrrig.GetComponent<PhotonView>().Owner == player)
                 {
                     return vrrig;
                 }
@@ -47,23 +47,73 @@ namespace J0kersTrollMenu.MenuMods
         public static VRRig GetClosestVRRig()
         {
             float num = float.MaxValue;
-            VRRig result = null;
+            VRRig outRig = null;
             foreach (VRRig vrrig in GorillaParent.instance.vrrigs)
             {
-                bool flag = Vector3.Distance(GorillaTagger.Instance.bodyCollider.transform.position, vrrig.transform.position) < num;
-                if (flag)
+                if (Vector3.Distance(GorillaTagger.Instance.bodyCollider.transform.position, vrrig.transform.position) < num && vrrig != GorillaTagger.Instance.offlineVRRig)
                 {
                     num = Vector3.Distance(GorillaTagger.Instance.bodyCollider.transform.position, vrrig.transform.position);
-                    result = vrrig;
+                    outRig = vrrig;
                 }
             }
-            return result;
+            return outRig;
+        }
+
+        public static MonkeyeAI[] monkeyeAI = null;
+
+        static float Timer = 0f;
+        public static MonkeyeAI[] FindMonkeyes()
+        {
+            if (Time.time > Timer)
+            {
+                monkeyeAI = null;
+                Timer = Time.time + 5f;
+            }
+            if (monkeyeAI == null)
+            {
+                monkeyeAI = UnityEngine.Object.FindObjectsOfType<MonkeyeAI>();
+            }
+            return monkeyeAI;
+        }
+
+        public static void GetOwnership(PhotonView view) // Cred IIDK <3
+        {
+            if (!view.AmOwner)
+            {
+                try
+                {
+                    view.OwnershipTransfer = OwnershipOption.Request;
+                    view.OwnerActorNr = PhotonNetwork.LocalPlayer.ActorNumber;
+                    view.ControllerActorNr = PhotonNetwork.LocalPlayer.ActorNumber;
+                    view.RequestOwnership();
+                    view.TransferOwnership(PhotonNetwork.LocalPlayer);
+
+                    RequestableOwnershipGuard rog = view.GetComponent<RequestableOwnershipGuard>();
+                    if (rog != null)
+                    {
+                        view.GetComponent<RequestableOwnershipGuard>().actualOwner = PhotonNetwork.LocalPlayer;
+                        view.GetComponent<RequestableOwnershipGuard>().currentOwner = PhotonNetwork.LocalPlayer;
+                        view.GetComponent<RequestableOwnershipGuard>().RequestTheCurrentOwnerFromAuthority();
+                        view.GetComponent<RequestableOwnershipGuard>().TransferOwnership(PhotonNetwork.LocalPlayer);
+                        view.GetComponent<RequestableOwnershipGuard>().TransferOwnershipFromToRPC(PhotonNetwork.LocalPlayer, view.GetComponent<RequestableOwnershipGuard>().ownershipRequestNonce, default(PhotonMessageInfo));
+                    }
+                    RpcCleanUp();
+                }
+                catch { UnityEngine.Debug.Log("Faliure to get ownership, is the PhotonView valid?"); }
+            }
+            else
+            {
+                view.OwnershipTransfer = OwnershipOption.Fixed;
+            }
         }
 
         #endregion
 
         #region Gorilla Tagger Mods
-        public static void BallsOnHands()
+
+        static float beesDelay;
+
+        static void BallsOnHands()
         {
             GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             Object.Destroy(gameObject.GetComponent<Rigidbody>());
@@ -81,6 +131,23 @@ namespace J0kersTrollMenu.MenuMods
             Object.Destroy(gameObject2, Time.deltaTime);
         }
 
+        static void LineToRig()
+        {
+            GameObject gameObject = new GameObject("Line");
+            LineRenderer lineRenderer = gameObject.AddComponent<LineRenderer>();
+            lineRenderer.startColor = Color.white;
+            lineRenderer.endColor = Color.black;
+            lineRenderer.startWidth = 0.01f;
+            lineRenderer.endWidth = 0.01f;
+            lineRenderer.positionCount = 2;
+            lineRenderer.useWorldSpace = true;
+            lineRenderer.SetPosition(0, GorillaLocomotion.Player.Instance.rightControllerTransform.position);
+            lineRenderer.SetPosition(1, GorillaTagger.Instance.offlineVRRig.transform.position);
+            lineRenderer.material.shader = Shader.Find("GUI/Text Shader");
+            UnityEngine.Object.Destroy(lineRenderer, Time.deltaTime);
+            UnityEngine.Object.Destroy(gameObject, Time.deltaTime);
+        }
+
         public static void LongArms()
         {
             GorillaTagger.Instance.transform.localScale = new Vector3(1.5f, 1.5f, 1.5f);
@@ -96,25 +163,6 @@ namespace J0kersTrollMenu.MenuMods
             GorillaTagger.Instance.offlineVRRig.head.trackingRotationOffset.x = 0f;
             GorillaTagger.Instance.offlineVRRig.head.trackingRotationOffset.y = 0f;
             GorillaTagger.Instance.offlineVRRig.head.trackingRotationOffset.z = 0f;
-        }
-
-        public static void AutoFunnyRun()
-        {
-            if (ControllerInputPoller.instance.rightControllerIndexFloat >= 0.1)
-            {
-                if (bothHands)
-                {
-                    float time = Time.frameCount;
-                    GorillaTagger.Instance.rightHandTransform.position = GorillaTagger.Instance.headCollider.transform.position + (GorillaTagger.Instance.headCollider.transform.forward * Mathf.Cos(time) / 10) + new Vector3(0, -0.5f - (Mathf.Sin(time) / 7), 0) + (GorillaTagger.Instance.headCollider.transform.right * -0.05f);
-                    GorillaTagger.Instance.leftHandTransform.position = GorillaTagger.Instance.headCollider.transform.position + (GorillaTagger.Instance.headCollider.transform.forward * Mathf.Cos(time + 180) / 10) + new Vector3(0, -0.5f - (Mathf.Sin(time + 180) / 7), 0) + (GorillaTagger.Instance.headCollider.transform.right * 0.05f);
-                }
-                else
-                {
-                    float time = Time.frameCount;
-                    GorillaTagger.Instance.rightHandTransform.position = GorillaTagger.Instance.headCollider.transform.position + (GorillaTagger.Instance.headCollider.transform.forward * Mathf.Cos(time) / 10) + new Vector3(0, -0.5f - (Mathf.Sin(time) / 7), 0);
-                    GorillaTagger.Instance.leftHandTransform.position = GorillaTagger.Instance.headCollider.transform.position + (GorillaTagger.Instance.headCollider.transform.forward * Mathf.Cos(time + 180) / 10) + new Vector3(0, -0.5f - (Mathf.Sin(time + 180) / 7), 0) + (GorillaTagger.Instance.headCollider.transform.right * 0.05f);
-                }
-            }
         }
 
         public static void FlyAtPlayer()
@@ -176,7 +224,7 @@ namespace J0kersTrollMenu.MenuMods
                     GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.rotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
                     GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.rotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
                 }
-                if (ControllerInputPoller.instance.rightControllerIndexFloat >= 0.1)
+                if (Plugin.CalculateGrabState(ControllerInputPoller.instance.rightControllerIndexFloat, 0.1f))
                 {
                     VRRig possibly = Ray.collider.GetComponentInParent<VRRig>();
                     if (possibly && possibly != GorillaTagger.Instance.offlineVRRig)
@@ -196,7 +244,7 @@ namespace J0kersTrollMenu.MenuMods
             }
         }
 
-        public static void PlayerHoldMe()
+        public static void CopyMovement()
         {
             if (ControllerInputPoller.instance.rightGrab)
             {
@@ -228,12 +276,20 @@ namespace J0kersTrollMenu.MenuMods
                 {
                     BallsOnHands();
                     GorillaTagger.Instance.offlineVRRig.enabled = false;
-                    GorillaTagger.Instance.offlineVRRig.transform.position = VrRigPlayers.rightHandTransform.position;
-                    GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.rotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
-                    GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * -1f);
-                    GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * 1f);
+
+                    GorillaTagger.Instance.offlineVRRig.transform.position = VrRigPlayers.transform.position;
+                    GorillaTagger.Instance.offlineVRRig.transform.rotation = VrRigPlayers.transform.rotation;
+
+                    GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.position = VrRigPlayers.head.rigTarget.transform.position;
+                    GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.rotation = VrRigPlayers.head.rigTarget.transform.rotation;
+
+                    GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.position = VrRigPlayers.leftHandTransform.transform.position;
+                    GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = VrRigPlayers.rightHandTransform.transform.position;
+
+                    GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.rotation = VrRigPlayers.leftHandTransform.transform.rotation;
+                    GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.rotation = VrRigPlayers.rightHandTransform.transform.rotation;
                 }
-                if (ControllerInputPoller.instance.rightControllerIndexFloat >= 0.1)
+                if (Plugin.CalculateGrabState(ControllerInputPoller.instance.rightControllerIndexFloat, 0.1f))
                 {
                     VRRig possibly = Ray.collider.GetComponentInParent<VRRig>();
                     if (possibly && possibly != GorillaTagger.Instance.offlineVRRig)
@@ -258,14 +314,14 @@ namespace J0kersTrollMenu.MenuMods
             if (ControllerInputPoller.instance.rightGrab)
             {
                 Physics.Raycast(GorillaLocomotion.Player.Instance.rightControllerTransform.position, -GorillaLocomotion.Player.Instance.rightControllerTransform.up, out var hitinfo);
-                pointer = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                pointer.transform.position = hitinfo.point;
-                pointer.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
-                pointer.GetComponent<Renderer>().material.shader = Shader.Find("GorillaTag/UberShader");
-                pointer.GetComponent<Renderer>().material.color = Color.white;
-                GameObject.Destroy(pointer.GetComponent<BoxCollider>());
-                GameObject.Destroy(pointer.GetComponent<Rigidbody>());
-                GameObject.Destroy(pointer.GetComponent<Collider>());
+                GunSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                GunSphere.transform.position = hitinfo.point;
+                GunSphere.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+                GunSphere.GetComponent<Renderer>().material.shader = Shader.Find("GorillaTag/UberShader");
+                GunSphere.GetComponent<Renderer>().material.color = Color.white;
+                GameObject.Destroy(GunSphere.GetComponent<BoxCollider>());
+                GameObject.Destroy(GunSphere.GetComponent<Rigidbody>());
+                GameObject.Destroy(GunSphere.GetComponent<Collider>());
 
                 GameObject line = new GameObject("Line");
                 LineRenderer liner = line.AddComponent<LineRenderer>();
@@ -277,48 +333,43 @@ namespace J0kersTrollMenu.MenuMods
                 liner.positionCount = 2;
                 liner.useWorldSpace = true;
                 liner.SetPosition(0, GorillaTagger.Instance.rightHandTransform.position);
-                liner.SetPosition(1, pointer.transform.position);
+                liner.SetPosition(1, GunSphere.transform.position);
                 UnityEngine.Object.Destroy(line, Time.deltaTime);
 
-                if (ControllerInputPoller.instance.rightControllerIndexFloat >= 0.1)
+                if (Plugin.CalculateGrabState(ControllerInputPoller.instance.rightControllerIndexFloat, 0.1f))
                 {
-                    GameObject.Destroy(pointer, Time.deltaTime);
-                    pointer.GetComponent<Renderer>().material.color = Color.black;
+                    GameObject.Destroy(GunSphere, Time.deltaTime);
+                    GunSphere.GetComponent<Renderer>().material.color = Color.black;
                     GorillaTagger.Instance.offlineVRRig.enabled = false;
                     GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * -1f);
                     GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * 1f);
                     GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.rotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
-                    GorillaTagger.Instance.offlineVRRig.transform.position = pointer.transform.position + new Vector3(0f, 1f, 0f);
+                                    // Fix For The hands rotation
+                Quaternion handRotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
+
+                Quaternion leftHandRotation = handRotation * Quaternion.Euler(0f, -1f, 0f) * Quaternion.Euler(0f, 0f, 80f); // 80f bc 90f makes them go down a bit
+                GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.rotation = leftHandRotation;
+
+                Quaternion rightHandRotation = handRotation * Quaternion.Euler(0f, 1f, 0f) * Quaternion.Euler(0f, 0f, -80f); // ^^ Same here but negative ^^
+                GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.rotation = rightHandRotation;
+                    GorillaTagger.Instance.offlineVRRig.transform.position = GunSphere.transform.position + new Vector3(0f, 1f, 0f);
                 }
 
             }
-            if (pointer != null)
+            if (GunSphere != null)
             {
                 GorillaTagger.Instance.offlineVRRig.enabled = true;
-                GameObject.Destroy(pointer, Time.deltaTime);
+                GameObject.Destroy(GunSphere, Time.deltaTime);
             }
         }
 
         public static void Bees()
         {
-            if (ControllerInputPoller.instance.rightControllerIndexFloat >= 0.1)
+            if (Plugin.CalculateGrabState(ControllerInputPoller.instance.rightControllerIndexFloat, 0.1f))
             {
                 BallsOnHands();
                 GorillaTagger.Instance.offlineVRRig.enabled = false;
-
-                GameObject gameObject = new GameObject("Line");
-                LineRenderer lineRenderer = gameObject.AddComponent<LineRenderer>();
-                lineRenderer.startColor = Color.white;
-                lineRenderer.endColor = Color.black;
-                lineRenderer.startWidth = 0.01f;
-                lineRenderer.endWidth = 0.01f;
-                lineRenderer.positionCount = 2;
-                lineRenderer.useWorldSpace = true;
-                lineRenderer.SetPosition(0, GorillaLocomotion.Player.Instance.rightControllerTransform.position);
-                lineRenderer.SetPosition(1, GorillaTagger.Instance.offlineVRRig.transform.position);
-                lineRenderer.material.shader = Shader.Find("GUI/Text Shader");
-                UnityEngine.Object.Destroy(lineRenderer, Time.deltaTime);
-                UnityEngine.Object.Destroy(gameObject, Time.deltaTime);
+                LineToRig();
 
                 if (Time.time > Mods.beesDelay)
                 {
@@ -329,19 +380,19 @@ namespace J0kersTrollMenu.MenuMods
                     GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = vrrig4.transform.position;
                     Mods.beesDelay = Time.time + 0.777f;
                 }
-                else
-                {
-                    GorillaTagger.Instance.offlineVRRig.enabled = true;
-                }
+            }
+            else
+            {
+                GorillaTagger.Instance.offlineVRRig.enabled = true;
             }
         }
-
 
         public static void Ghost()
         {
             if (ControllerInputPoller.instance.rightControllerSecondaryButton)
             {
                 BallsOnHands();
+                LineToRig();
                 GorillaTagger.Instance.offlineVRRig.enabled = false;
             }
             else
@@ -355,10 +406,20 @@ namespace J0kersTrollMenu.MenuMods
             if (ControllerInputPoller.instance.rightControllerSecondaryButton)
             {
                 BallsOnHands();
+                LineToRig();
                 GorillaTagger.Instance.offlineVRRig.enabled = false;
                 GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * -1f);
                 GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * 1f);
                 GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.rotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
+
+                // Fix For The hands rotation
+                Quaternion handRotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
+
+                Quaternion leftHandRotation = handRotation * Quaternion.Euler(0f, -1f, 0f) * Quaternion.Euler(0f, 0f, 80f); // 80f bc 90f makes them go down a bit
+                GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.rotation = leftHandRotation;
+
+                Quaternion rightHandRotation = handRotation * Quaternion.Euler(0f, 1f, 0f) * Quaternion.Euler(0f, 0f, -80f); // ^^ Same here but negative ^^
+                GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.rotation = rightHandRotation;
             }
             else
             {
@@ -366,14 +427,9 @@ namespace J0kersTrollMenu.MenuMods
             }
         }
 
-        public static void StareAtNearby()
-        {
-            GorillaTagger.Instance.offlineVRRig.headConstraint.LookAt(Mods.GetClosestVRRig().headMesh.transform.position);
-        }
-
         public static void Invis()
         {
-            if (ControllerInputPoller.instance.rightControllerIndexFloat > 0.4f)
+            if (Plugin.CalculateGrabState(ControllerInputPoller.instance.rightControllerIndexFloat, 0.1f))
             {
                 BallsOnHands();
                 GorillaTagger.Instance.offlineVRRig.enabled = false;
@@ -385,94 +441,46 @@ namespace J0kersTrollMenu.MenuMods
             }
         }
 
-        public static void GhostFlight()
-        {
-            if (ControllerInputPoller.instance.rightControllerSecondaryButton)
-            {
-                GorillaTagger.Instance.offlineVRRig.enabled = false;
-                GorillaTagger.Instance.offlineVRRig.transform.position += GorillaTagger.Instance.offlineVRRig.headConstraint.transform.forward * Time.deltaTime * 1;
-                GorillaTagger.Instance.offlineVRRig.GetComponent<Rigidbody>().velocity = Vector3.zero;
-
-                GameObject gameObject = new GameObject("Line");
-                LineRenderer lineRenderer = gameObject.AddComponent<LineRenderer>();
-                lineRenderer.startColor = Color.white;
-                lineRenderer.endColor = Color.black;
-                lineRenderer.startWidth = 0.01f;
-                lineRenderer.endWidth = 0.01f;
-                lineRenderer.positionCount = 2;
-                lineRenderer.useWorldSpace = true;
-                lineRenderer.SetPosition(0, GorillaLocomotion.Player.Instance.rightControllerTransform.position);
-                lineRenderer.SetPosition(1, GorillaTagger.Instance.offlineVRRig.transform.position);
-                lineRenderer.material.shader = Shader.Find("GUI/Text Shader");
-                UnityEngine.Object.Destroy(lineRenderer, Time.deltaTime);
-                UnityEngine.Object.Destroy(gameObject, Time.deltaTime);
-
-                AION();
-            }
-            else
-            {
-                GorillaTagger.Instance.offlineVRRig.enabled = true;
-            }
-        }
-
-        #region Shitty AI Code
-        public static void AION()
-        {
-            if (isFirstActivation)
-            {
-                activationTime = Time.time;
-                ActivateFirst();
-                isFirstActivation = false;
-            }
-            if (Time.time - activationTime >= activationDuration)
-            {
-                isFirstOn = !isFirstOn;
-                activationTime = Time.time;
-            }
-
-            if (isFirstOn)
-            {
-                ActivateFirst();
-            }
-            else
-            {
-                ActivateSecond();
-            }
-        }
-
-
-
-        static void ActivateFirst()
-        {
-            float time = Time.frameCount;
-            GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + GorillaTagger.Instance.offlineVRRig.transform.right * -1f;
-            GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + GorillaTagger.Instance.offlineVRRig.transform.right * 1f;
-        }
-
-        static void ActivateSecond()
-        {
-            GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + GorillaTagger.Instance.offlineVRRig.transform.right * 0f;
-            GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + GorillaTagger.Instance.offlineVRRig.transform.right * 0f;
-        }
-        #endregion
-
         #endregion
 
         #region Speed
 
         public static void Speed()
         {
-            GorillaLocomotion.Player.Instance.maxJumpSpeed = 9.8f;
+            GorillaLocomotion.Player.Instance.maxJumpSpeed = 9.8f; // Fix To Your Settings
         }
 
         public static void SpeedFix()
         {
-            GorillaLocomotion.Player.Instance.maxJumpSpeed = 6.5f;
+            GorillaLocomotion.Player.Instance.maxJumpSpeed = 6.5f; // Resets Speed
         }
 
         #endregion
 
         #region Room Mods
+
+        public static void GetInfo()
+        {
+            string text = "=======================Player IDs!=========================";
+
+            foreach (Player player in PhotonNetwork.PlayerListOthers)
+            {
+                if (PhotonNetwork.InRoom || PhotonNetwork.InLobby)
+                {
+                    string playerName = player.NickName;
+                    string playerId = player.UserId;
+                    string roomId = PhotonNetwork.CurrentRoom.Name;
+                    string isMaster = player.IsMasterClient.ToString();
+
+                    text += $"\nPlayer Name: {playerName}, Player ID: {playerId}, Room ID: {roomId}, Master: {isMaster}";
+                }
+            }
+
+            text += "\n==========================================================\n";
+            File.AppendAllText("PLAYER INFO.txt", text);
+            GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/UI/motd/motdtext").GetComponent<Text>().text = "PLAYFAB ID: " + PlayFabSettings.TitleId.ToString() + "\nPhoton Real Time: " + PhotonNetwork.PhotonServerSettings.AppSettings.AppIdRealtime.ToString() + "\nPhoton Voice: " + PhotonNetwork.PhotonServerSettings.AppSettings.AppIdVoice.ToString() + "\nRegion: " + PhotonNetwork.PhotonServerSettings.AppSettings.FixedRegion + "\nSDK Version: " + PlayFabSettings.VersionString.ToString() + "\nAUTH URL: " + PlayFabAuthenticator.Playfab_Auth_API + "\nGAME VERSION: " + GorillaComputer.instance.version + "\nMASTER: " + PhotonNetwork.MasterClient;
+            NotifiLib.SendNotification("<color=green>INFO PULLED</color> <color=gray>CHECK GTAG FILE AND MOTD</color>");
+        }
         public static float notiDelay = 0f;
 
         public static void RandomGhostCode()
@@ -501,96 +509,12 @@ namespace J0kersTrollMenu.MenuMods
             PhotonNetworkController.Instance.AttemptToJoinSpecificRoom(roomNames[num], JoinType.Solo);
         }
 
-        public static void Join666()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("666", JoinType.Solo);
-        }
+        /* 
+         Sorry Got Rid Of The Other Ones Just Taking Up Space 
+         But If You Want The Code Here It Is: 
 
-
-        public static void JoinDaisy09()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("DAISY09", JoinType.Solo);
-        }
-
-        public static void JoinPBBV()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("PBBV", JoinType.Solo);
-        }
-
-        public static void JoinSren17()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("SREN17", JoinType.Solo);
-        }
-
-        public static void JoinSren18()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("SREN18", JoinType.Solo);
-        }
-
-        public static void JoinAI()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("AI", JoinType.Solo);
-        }
-
-        public static void JoinGhost()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("GHOST", JoinType.Solo);
-        }
-
-        public static void JoinJ3vu()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("J3VU", JoinType.Solo);
-        }
-
-        public static void JoinRun()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("RUN", JoinType.Solo);
-        }
-
-        public static void JoinBot()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("BOT", JoinType.Solo);
-        }
-
-        public static void JoinTipToe()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("TIPTOE", JoinType.Solo);
-        }
-
-        public static void JoinSpider()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("SPIDER", JoinType.Solo);
-        }
-
-        public static void JoinSTATUE()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("STATUE", JoinType.Solo);
-        }
-
-        public static void JoinBANSHEE()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("BANSHEE", JoinType.Solo);
-        }
-
-        public static void JoinRabbit()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("RABBIT", JoinType.Solo);
-        }
-
-        public static void JoinError()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("ERROR", JoinType.Solo);
-        }
-
-        public static void JoinISeeYouBan()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("ISEEYOUBAN", JoinType.Solo);
-        }
-
-        public static void JoinPL7()
-        {
-            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("PL7", JoinType.Solo);
-        }
+         PhotonNetworkController.Instance.AttemptToJoinSpecificRoom("Room Name Here", JoinType.Solo);
+        */
         #endregion
 
         #region Plats
@@ -734,12 +658,15 @@ namespace J0kersTrollMenu.MenuMods
 
         #region Player
 
+        static bool bothHands;
+
         public static void FlightWithNoClip()
         {
             if (ControllerInputPoller.instance.rightControllerSecondaryButton)
             {
                 GorillaLocomotion.Player.Instance.transform.position += GorillaLocomotion.Player.Instance.headCollider.transform.forward * Time.deltaTime * 15;
                 GorillaLocomotion.Player.Instance.GetComponent<Rigidbody>().velocity = Vector3.zero;
+                #region No Clip
                 foreach (MeshCollider collider in Resources.FindObjectsOfTypeAll<MeshCollider>())
                 {
                     collider.enabled = false;
@@ -751,6 +678,16 @@ namespace J0kersTrollMenu.MenuMods
                 {
                     collider.enabled = true;
                 }
+                #endregion
+            }
+        }
+
+        public static void Rocket()
+        {
+            if (ControllerInputPoller.instance.rightControllerSecondaryButton)
+            {
+                GorillaLocomotion.Player.Instance.transform.position += GorillaLocomotion.Player.Instance.transform.up * Time.deltaTime * 25;
+                //GorillaLocomotion.Player.Instance.GetComponent<Rigidbody>().velocity = Vector3.zero; Add this if you want no velocity
             }
         }
 
@@ -764,6 +701,31 @@ namespace J0kersTrollMenu.MenuMods
             GorillaLocomotion.Player.Instance.bodyCollider.attachedRigidbody.useGravity = true;
         }
 
+        public static void AutoFunnyRun()
+        {
+            if (Plugin.CalculateGrabState(ControllerInputPoller.instance.rightControllerIndexFloat, 0.1f))
+            {
+                if (bothHands)
+                {
+                    float time = Time.frameCount;
+                    GorillaTagger.Instance.rightHandTransform.position = GorillaTagger.Instance.headCollider.transform.position + (GorillaTagger.Instance.headCollider.transform.forward * Mathf.Cos(time) / 10) + new Vector3(0, -0.5f - (Mathf.Sin(time) / 7), 0) + (GorillaTagger.Instance.headCollider.transform.right * -0.05f);
+                    GorillaTagger.Instance.leftHandTransform.position = GorillaTagger.Instance.headCollider.transform.position + (GorillaTagger.Instance.headCollider.transform.forward * Mathf.Cos(time + 180) / 10) + new Vector3(0, -0.5f - (Mathf.Sin(time + 180) / 7), 0) + (GorillaTagger.Instance.headCollider.transform.right * 0.05f);
+                }
+                else
+                {
+                    float time = Time.frameCount;
+                    GorillaTagger.Instance.rightHandTransform.position = GorillaTagger.Instance.headCollider.transform.position + (GorillaTagger.Instance.headCollider.transform.forward * Mathf.Cos(time) / 10) + new Vector3(0, -0.5f - (Mathf.Sin(time) / 7), 0);
+                    GorillaTagger.Instance.leftHandTransform.position = GorillaTagger.Instance.headCollider.transform.position + (GorillaTagger.Instance.headCollider.transform.forward * Mathf.Cos(time + 180) / 10) + new Vector3(0, -0.5f - (Mathf.Sin(time + 180) / 7), 0) + (GorillaTagger.Instance.headCollider.transform.right * 0.05f);
+                }
+            }
+        }
+        #endregion
+
+        #region Safty
+        public static bool Frame = false;
+        private static float SplashCoolDown;
+        private static float threshold = 0.35f;
+
         public static void NoFinger()
         {
             ControllerInputPoller.instance.leftControllerGripFloat = 0f;
@@ -775,10 +737,6 @@ namespace J0kersTrollMenu.MenuMods
             ControllerInputPoller.instance.rightControllerPrimaryButton = false;
             ControllerInputPoller.instance.rightControllerSecondaryButton = false;
         }
-
-        #endregion 
-
-        #region Safty
 
         public static void SpoofName()
         {
@@ -797,22 +755,20 @@ namespace J0kersTrollMenu.MenuMods
               "KATHY",
               "LIAM",
               "MONAVR",
+              "RARENAME",
               "NATHANVR",
               "OLIVIA",
               "DAISY09",
               "QUINCY",
-              "RACHELVR"
+              "RACHELVR",
+              "UHH",
+              "ILOVEYOU"
             };
             int num = new System.Random().Next(SpoofNames.Length);
             PhotonNetwork.LocalPlayer.NickName = SpoofNames[num];
         }
-    
 
-
-        public static List<GorillaScoreBoard> currentboards = new List<GorillaScoreBoard>() { };
-        public static GorillaScoreBoard[] boards = null;
-
-        public static void AntiReportDisconnect()
+        public static void AntiReportDisconnect() // Cred iiDk for all anti reports
         {
             try
             {
@@ -828,12 +784,11 @@ namespace J0kersTrollMenu.MenuMods
                                 float D1 = Vector3.Distance(vrrig.rightHandTransform.position, report.position);
                                 float D2 = Vector3.Distance(vrrig.leftHandTransform.position, report.position);
 
-                                float threshold = 0.35f;
-
                                 if (D1 < threshold || D2 < threshold)
                                 {
                                     PhotonNetwork.Disconnect();
-                                    NotifiLib.SendNotification("<color=grey>[</color><color=purple>ANTI-REPORT</color><color=grey>]</color> <color=white>Someone attempted to report you, you have been disconnected.</color>");
+                                    NotifiLib.SendNotification("Someone attempted to report you, you have been disconnected.");
+                                    RpcCleanUp();
                                 }
                             }
                         }
@@ -842,13 +797,57 @@ namespace J0kersTrollMenu.MenuMods
             }
             catch { } // Not connected
         }
+
+        public static void QuestAntiReportTEST()
+        {
+            foreach (GorillaPlayerScoreboardLine line in GorillaScoreboardTotalUpdater.allScoreboardLines)
+            {
+                if (line.reportInProgress == true || line.reportedCheating == true || line.reportedHateSpeech == true || line.reportedToxicity == true)
+                {
+                    PhotonNetwork.Disconnect();
+                    NotifiLib.SendNotification("Someone attempted to report you, you have been disconnected.");
+                }
+            }
+        }
+
+        public static void RpcCleanUp()
+        {
+            float RemoveTimer;
+            PhotonNetwork.RemoveRPCs(PhotonNetwork.LocalPlayer);
+            PhotonNetwork.RemoveBufferedRPCs();
+            GorillaGameManager.instance.OnPlayerLeftRoom(PhotonNetwork.LocalPlayer);
+            GorillaGameManager.instance.OnPlayerLeftRoom(PhotonNetwork.LocalPlayer);
+            GorillaGameManager.instance.OnPlayerLeftRoom(PhotonNetwork.LocalPlayer);
+            GorillaGameManager.instance.OnMasterClientSwitched(PhotonNetwork.LocalPlayer);
+            ScienceExperimentManager.instance.OnMasterClientSwitched(PhotonNetwork.LocalPlayer);
+            GorillaGameManager.instance.OnMasterClientSwitched(PhotonNetwork.LocalPlayer);
+            GorillaGameManager.instance.OnMasterClientSwitched(PhotonNetwork.LocalPlayer);
+
+            if (GorillaTagger.Instance.myVRRig != null)
+            {
+                PhotonNetwork.OpCleanRpcBuffer(GorillaTagger.Instance.myVRRig);
+            }
+            RemoveTimer = Time.time;
+            if (!Frame)
+            {
+                Frame = true;
+                GorillaNot.instance.rpcErrorMax = int.MaxValue;
+                GorillaNot.instance.rpcCallLimit = int.MaxValue;
+                GorillaNot.instance.logErrorMax = int.MaxValue;
+                PhotonNetwork.RemoveRPCs(PhotonNetwork.LocalPlayer);
+                PhotonNetwork.OpCleanRpcBuffer(GorillaTagger.Instance.myVRRig);
+                PhotonNetwork.RemoveBufferedRPCs(GorillaTagger.Instance.myVRRig.ViewID, null, null);
+                PhotonNetwork.RemoveRPCsInGroup(int.MaxValue);
+                PhotonNetwork.SendAllOutgoingCommands();
+                GorillaNot.instance.OnPlayerLeftRoom(PhotonNetwork.LocalPlayer);
+            }
+        }
         #endregion
 
         #region Cave Mods
         public static void OpenGates()
         {
-            NotifiLib.SendNotification("<color=grey>[</color><color=green>Outside Gates</color><color=grey>]</color> <color=white> Are Opening</color>");
-            NotifiLib.SendNotification("<color=grey>[</color><color=green>Info:</color><color=grey>]</color> <color=white> USE THE OTHER GATE BUTTON NOW!</color>");
+            NotifiLib.SendNotification("<color=grey>[</color><color=green>Gates</color><color=grey>]</color> <color=white> Are Opening</color>");
             GameObject.Find("Environment Objects/05Maze_PersistentObjects/GhostLab").GetComponent<GhostLabReliableState>().photonView.ControllerActorNr = PhotonNetwork.LocalPlayer.ActorNumber;
             GameObject.Find("Environment Objects/05Maze_PersistentObjects/GhostLab").GetComponent<GhostLabReliableState>().photonView.OwnerActorNr = PhotonNetwork.LocalPlayer.ActorNumber;
 
@@ -866,15 +865,168 @@ namespace J0kersTrollMenu.MenuMods
         }
         #endregion
 
-        #region Time Mods 
+        #region Water Mods
 
-        public static void TimeYup()
+        public static void AnnoyPlayerGun()
         {
-            int[] TimeOfDay = { 3, 1, 7, 0 };
-            int num = new System.Random().Next(TimeOfDay.Length);
-            BetterDayNightManager.instance.SetTimeOfDay(TimeOfDay[num]);
+            if (ControllerInputPoller.instance.rightGrab)
+            {
+                Physics.Raycast(GorillaTagger.Instance.rightHandTransform.position, -GorillaTagger.Instance.rightHandTransform.up, out var Ray);
+                GameObject NewPointer = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                NewPointer.GetComponent<Renderer>().material.shader = Shader.Find("GUI/Text Shader");
+                NewPointer.GetComponent<Renderer>().material.color = Color.white;
+                NewPointer.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+                NewPointer.transform.position = CopyPlayer ? VrRigPlayers.transform.position : Ray.point;
+                UnityEngine.Object.Destroy(NewPointer.GetComponent<BoxCollider>());
+                UnityEngine.Object.Destroy(NewPointer.GetComponent<Rigidbody>());
+                UnityEngine.Object.Destroy(NewPointer.GetComponent<Collider>());
+                UnityEngine.Object.Destroy(NewPointer, Time.deltaTime);
+
+                GameObject line = new GameObject("Line");
+                LineRenderer liner = line.AddComponent<LineRenderer>();
+                liner.material.shader = Shader.Find("GUI/Text Shader");
+                liner.startColor = Color.white;
+                liner.endColor = Color.black;
+                liner.startWidth = 0.025f;
+                liner.endWidth = 0.025f;
+                liner.positionCount = 2;
+                liner.useWorldSpace = true;
+                liner.SetPosition(0, GorillaTagger.Instance.rightHandTransform.position);
+                liner.SetPosition(1, CopyPlayer ? VrRigPlayers.transform.position : Ray.point);
+                UnityEngine.Object.Destroy(line, Time.deltaTime);
+
+                if (CopyPlayer && VrRigPlayers != null && Time.time > SplashCoolDown)
+                {
+                    BallsOnHands();
+                    GorillaTagger.Instance.offlineVRRig.enabled = false;
+
+                    GorillaTagger.Instance.offlineVRRig.transform.position = VrRigPlayers.transform.position;
+                    GorillaTagger.Instance.offlineVRRig.transform.rotation = VrRigPlayers.transform.rotation;
+
+                    GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.position = VrRigPlayers.head.rigTarget.transform.position;
+                    GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.rotation = VrRigPlayers.head.rigTarget.transform.rotation;
+                    GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * 0f);
+                    GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * 0f);
+                    GorillaTagger.Instance.myVRRig.RPC("PlaySplashEffect", RpcTarget.All, new object[]
+                    {
+                    GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.position,
+                    GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.rotation,
+                    4f,
+                    100f,
+                    true,
+                    false
+                    });
+                    RpcCleanUp();
+                    SplashCoolDown = Time.time + 0.1f;
+                    foreach (MonkeyeAI monkeyeAI in Resources.FindObjectsOfTypeAll<MonkeyeAI>())
+                    {
+                        GetOwnership(monkeyeAI.gameObject.GetComponent<PhotonView>());
+                        if (monkeyeAI.gameObject.GetComponent<PhotonView>().Owner == PhotonNetwork.LocalPlayer)
+                        {
+                            monkeyeAI.gameObject.transform.position = GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.position;
+                        }
+                        else
+                        {
+                            monkeyeAI.gameObject.GetComponent<PhotonView>().RequestOwnership();
+                        }
+                    }
+
+                }
+                if (Plugin.CalculateGrabState(ControllerInputPoller.instance.rightControllerIndexFloat, 0.1f))
+                {
+                    VRRig possibly = Ray.collider.GetComponentInParent<VRRig>();
+                    if (possibly && possibly != GorillaTagger.Instance.offlineVRRig)
+                    {
+                        CopyPlayer = true;
+                        VrRigPlayers = possibly;
+                    }
+                }
+            }
+            else
+            {
+                if (CopyPlayer)
+                {
+                    CopyPlayer = false;
+                    GorillaTagger.Instance.offlineVRRig.enabled = true;
+                }
+            }
         }
 
+        public static void WaterSplashHands()
+        {
+            if (ControllerInputPoller.instance.rightControllerSecondaryButton && Time.time > SplashCoolDown)
+            {
+                GorillaTagger.Instance.myVRRig.RPC("PlaySplashEffect", RpcTarget.All, new object[]
+                {
+                    GorillaTagger.Instance.rightHandTransform.position,
+                    GorillaTagger.Instance.rightHandTransform.rotation,
+                    4f,
+                    100f,
+                    true,
+                    false
+                });
+                RpcCleanUp();
+                SplashCoolDown = Time.time + 0.1f;
+            }
+
+            if (ControllerInputPoller.instance.leftControllerSecondaryButton && Time.time > SplashCoolDown)
+            {
+                GorillaTagger.Instance.myVRRig.RPC("PlaySplashEffect", RpcTarget.All, new object[]
+                {
+                    GorillaTagger.Instance.leftHandTransform.position,
+                    GorillaTagger.Instance.leftHandTransform.rotation,
+                    4f,
+                    100f,
+                    true,
+                    false
+                });
+                RpcCleanUp();
+                SplashCoolDown = Time.time + 0.1f;
+            }
+        }
+
+        public static void WaterSplashBody()
+        {
+            if (ControllerInputPoller.instance.rightControllerSecondaryButton && Time.time > SplashCoolDown)
+            {
+                GorillaTagger.Instance.myVRRig.RPC("PlaySplashEffect", RpcTarget.All, new object[]
+                {
+                    GorillaTagger.Instance.bodyCollider.transform.position,
+                    GorillaTagger.Instance.bodyCollider.transform.rotation,
+                    4f,
+                    100f,
+                    true,
+                    false
+                });
+                RpcCleanUp();
+                SplashCoolDown = Time.time + 0.1f;
+            }
+        }
+
+        #endregion
+
+        #region Other Players
+        public static void FreezeAll()
+        {
+            foreach (MonkeyeAI monkeyeAI in FindMonkeyes())
+            {
+                GetOwnership(monkeyeAI.gameObject.GetComponent<PhotonView>());
+                monkeyeAI.gameObject.transform.position = new Vector3(1e11f, 1e11f, 1e11f);
+            }
+            if (Plugin.buttonsActive[9] == false)
+            {
+                Platforms();
+            }
+        }
+
+        public static void FreezeAllOff()
+        {
+            foreach (MonkeyeAI monkeyeAI in FindMonkeyes())
+            {
+                GetOwnership(monkeyeAI.gameObject.GetComponent<PhotonView>());
+                monkeyeAI.gameObject.transform.position = Vector3.zero;
+            }
+        }
         #endregion
     }
 }

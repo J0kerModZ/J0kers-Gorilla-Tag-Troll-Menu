@@ -37,10 +37,14 @@
     <Compile Include="Notifications\NotifiLib.cs" />
     <Compile Include="Notifications\PlayerJoin.cs" />
     <Compile Include="Notifications\PlayerLeave.cs" />
-    <Compile Include="Patchers\AntiLag.cs" />
+    <Compile Include="Patchers\DelayBan.cs" />
+    <Compile Include="Patchers\SendReportPatch.cs" />
+    <Compile Include="Patchers\InvalidRoomPatch.cs" />
+    <Compile Include="Patchers\LogEvents.cs" />
     <Compile Include="Patchers\HarmonyPatcher.cs" />
     <Compile Include="Patchers\MenuPatch.cs" />
     <Compile Include="Patchers\Patcher.cs" />
+    <Compile Include="Patchers\ReportPatch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -55,6 +59,14 @@
     <Reference Include="BepInEx">
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Gorilla Tag\BepInEx\core\BepInEx.dll</HintPath>
     </Reference>
+    <Reference Include="Fusion.Realtime, Version=1.1.8.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Gorilla Tag\Gorilla Tag_Data\Managed\Fusion.Realtime.dll</HintPath>
+    </Reference>
+    <Reference Include="Fusion.Runtime, Version=1.1.8.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Gorilla Tag\Gorilla Tag_Data\Managed\Fusion.Runtime.dll</HintPath>
+    </Reference>
     <Reference Include="Photon3Unity3D, Version=4.1.6.23, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Gorilla Tag\Gorilla Tag_Data\Managed\Photon3Unity3D.dll</HintPath>
@@ -66,6 +78,10 @@
     <Reference Include="PhotonUnityNetworking, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Gorilla Tag\Gorilla Tag_Data\Managed\PhotonUnityNetworking.dll</HintPath>
+    </Reference>
+    <Reference Include="PlayFab, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Gorilla Tag\Gorilla Tag_Data\Managed\PlayFab.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>

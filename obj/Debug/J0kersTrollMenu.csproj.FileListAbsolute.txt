@@ -137,3 +137,6 @@ C:\Program Files (x86)\Steam\steamapps\common\Gorilla Tag\BepInEx\plugins\J0kers
 C:\Program Files (x86)\Steam\steamapps\common\Gorilla Tag\BepInEx\plugins\J0kersTrollMenu.pdb
 C:\Users\J0ker ModZ\source\repos\J0kersTrollMenu\J0kersTrollMenu\bin\Debug\BepInEx.dll
 C:\Users\J0ker ModZ\source\repos\J0kersTrollMenu\J0kersTrollMenu\bin\Debug\BepInEx.xml
+C:\Users\J0ker ModZ\source\repos\J0kersTrollMenu\J0kersTrollMenu\bin\Debug\Unity.ResourceManager.dll
+C:\Users\J0ker ModZ\source\repos\J0kersTrollMenu\J0kersTrollMenu\bin\Debug\Unity.Addressables.dll
+C:\Users\J0ker ModZ\source\repos\J0kersTrollMenu\J0kersTrollMenu\bin\Debug\Unity.Profiling.Core.dll

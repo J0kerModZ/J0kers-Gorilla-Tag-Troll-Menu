@@ -8,8 +8,9 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.UIElements;
-using UnityEngine.Windows.WebCam;
+using PlayFab;
+using System.Collections;
+using ExitGames.Client.Photon;
 
 namespace J0kersTrollMenu.ModMenu
 {
@@ -35,18 +36,6 @@ namespace J0kersTrollMenu.ModMenu
             return grabValue >= grabThreshold;
         }
 
-        static float IsOn1;
-        static float IsOn2;
-        static float IsOn3;
-        static float IsOn4;
-        static float IsOn5;
-        static float IsOn6;
-        static float IsOn7;
-        static float IsOn8;
-        static float IsOn9;
-        static float IsOn10;
-        static float IsOn11;
-        static float IsOn12;
         public static bool AllowNoClip = false;
         public static bool AntiNoClip = false;
         private static int pageSize = 4;
@@ -55,14 +44,18 @@ namespace J0kersTrollMenu.ModMenu
         public static GameObject menu = null;
         public static GameObject canvasObj = null;
         public static string MenuPageActive = "1";
-        public static GameObject referance = null;
+        public static GameObject MenuSelectorSphere = null;
         public static int framePressCooldown = 0;
         public static GameObject pointer = null;
         public static int btnCooldown = 0;
         public static Color coloresp;
-        public static GradientColorKey[] colorKeys = new GradientColorKey[4];
+        public static GradientColorKey[] ColorStrobe = new GradientColorKey[4];
         public static int[] bones = { 4, 3, 5, 4, 19, 18, 20, 19, 3, 18, 21, 20, 22, 21, 25, 21, 29, 21, 31, 29, 27, 25, 24, 22, 6, 5, 7, 6, 10, 6, 14, 6, 16, 14, 12, 10, 9, 7 };
         static Plugin sendOnAwake;
+        static bool DOAntiReport = false;
+        static bool DOAntiReportOculus = false;
+        public static bool AntiOculusReport = false;
+
         internal static Plugin plugin
         {
             get
@@ -71,53 +64,86 @@ namespace J0kersTrollMenu.ModMenu
             }
         }
         #endregion
-    
+
+        static void AntiReport()
+        {
+            if (DOAntiReport == true)
+            {
+                Mods.AntiReportDisconnect();
+            }
+
+            if (DOAntiReportOculus == true)
+            {
+                Mods.QuestAntiReportTEST();
+                AntiOculusReport = true;
+            }
+
+            if (DOAntiReportOculus == false)
+            {
+                Mods.QuestAntiReportTEST();
+                AntiOculusReport = false;
+            }
+        }
+
+        [Obsolete]
         private static void Prefix()
         {
             try
             {
+                #region Text B4 menu
+                if (AHH == "1")
+                {
+                    DrawTextB4Menu();
+                }
+                CanvasHolder.transform.localPosition = new Vector3(0f, 0.091f, -0.1f);
+                CanvasHolder.transform.localScale = new Vector3(0.0025f, 0.0025f, 0.0025f);
+                CanvasHolder.transform.localRotation = Quaternion.Euler(75f, 0f, 0f);
+                #endregion
                 UpdateBoards();
                 NewCam();
+                AntiReport();
+                PhotonNetwork.NetworkingClient.EventReceived += EventReceived;
                 GorillaLocomotion.Player __instance = GorillaLocomotion.Player.Instance;
                 List<UnityEngine.XR.InputDevice> list = new List<UnityEngine.XR.InputDevice>();
                 if (ControllerInputPoller.instance.controllerType == GorillaControllerType.OCULUS_DEFAULT)
                 {
                     if (CalculateGrabState(ControllerInputPoller.instance.leftControllerIndexFloat, 0.1f) && menu == null)
                     {
+                        Destroy(Loltext);
                         if (MenuPageActive == "1")
                         {
                             Draw();
                         }
-                        if (referance == null)
+                        if (MenuSelectorSphere == null)
                         {
-                            referance = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                            referance.name = "pointer";
-                            referance.transform.parent = __instance.rightControllerTransform;
-                            referance.transform.localPosition = new Vector3(0f, -0.1f, 0f);
-                            referance.transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
-                            colorKeys[0].color = Color.black;
-                            colorKeys[0].time = 0f;
-                            colorKeys[1].color = Color.white;
-                            colorKeys[1].time = 0.3f;
-                            colorKeys[2].color = Color.black;
-                            colorKeys[2].time = 0.6f;
+                            MenuSelectorSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                            MenuSelectorSphere.name = "GunSphere";
+                            MenuSelectorSphere.transform.parent = __instance.rightControllerTransform;
+                            MenuSelectorSphere.transform.localPosition = new Vector3(0f, -0.1f, 0f);
+                            MenuSelectorSphere.transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
+                            ColorStrobe[0].color = Color.black;
+                            ColorStrobe[0].time = 0f;
+                            ColorStrobe[1].color = Color.white;
+                            ColorStrobe[1].time = 0.3f;
+                            ColorStrobe[2].color = Color.black;
+                            ColorStrobe[2].time = 0.6f;
 
 
-                            ColorChanger colorChanger = referance.AddComponent<ColorChanger>();
+                            ColorChanger colorChanger = MenuSelectorSphere.AddComponent<ColorChanger>();
                             colorChanger.colors = new Gradient
                             {
-                                colorKeys = colorKeys
+                                colorKeys = ColorStrobe
                             };
                             colorChanger.Start();
                         }
                     }
                     else if (!CalculateGrabState(ControllerInputPoller.instance.leftControllerIndexFloat, 0.1f) && menu != null)
                     {
-                        Destroy(referance);
+                        Destroy(MenuSelectorSphere);
                         menu.AddComponent<Rigidbody>();
                         UnityEngine.Object.Destroy(menu, 1f);
                         menu = null;
-                        referance = null;
+                        MenuSelectorSphere = null;
                     }
                     if (CalculateGrabState(ControllerInputPoller.instance.leftControllerIndexFloat, 0.1f) && menu != null)
                     {
@@ -129,40 +155,43 @@ namespace J0kersTrollMenu.ModMenu
                 {
                     if (CalculateGrabState(ControllerInputPoller.instance.leftControllerIndexFloat, 0.1f) && menu == null)
                     {
+                        Destroy(Loltext);
                         if (MenuPageActive == "1")
                         {
                             Draw();
                         }
-                        if (referance == null)
+                        if (MenuSelectorSphere == null)
                         {
-                            referance = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                            referance.name = "pointer";
-                            referance.transform.parent = __instance.rightControllerTransform;
-                            referance.transform.localPosition = new Vector3(0f, -0.1f, 0f);
-                            referance.transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
-                            colorKeys[0].color = Color.black;
-                            colorKeys[0].time = 0f;
-                            colorKeys[1].color = Color.white;
-                            colorKeys[1].time = 0.3f;
-                            colorKeys[2].color = Color.black;
-                            colorKeys[2].time = 0.6f;
+                            MenuSelectorSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                            MenuSelectorSphere.name = "GunSphere";
+                            MenuSelectorSphere.transform.parent = __instance.rightControllerTransform;
+                            MenuSelectorSphere.transform.localPosition = new Vector3(0f, -0.1f, 0f);
+                            MenuSelectorSphere.transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
+                            ColorStrobe[0].color = Color.black;
+                            ColorStrobe[0].time = 0f;
+                            ColorStrobe[1].color = Color.white;
+                            ColorStrobe[1].time = 0.3f;
+                            ColorStrobe[2].color = Color.black;
+                            ColorStrobe[2].time = 0.6f;
 
 
-                            ColorChanger colorChanger = referance.AddComponent<ColorChanger>();
+                            ColorChanger colorChanger = MenuSelectorSphere.AddComponent<ColorChanger>();
                             colorChanger.colors = new Gradient
                             {
-                                colorKeys = colorKeys
+                                colorKeys = ColorStrobe
                             };
                             colorChanger.Start();
                         }
                     }
                     else if (!CalculateGrabState(ControllerInputPoller.instance.leftControllerIndexFloat, 0.1f) && menu != null)
                     {
-                        Destroy(referance);
+                        Destroy(MenuSelectorSphere);
                         menu.AddComponent<Rigidbody>();
+                        menu.GetComponent<Rigidbody>().useGravity = false;
+                        menu.GetComponent<Rigidbody>().velocity = new Vector3(0f, 15f, 0f);
                         UnityEngine.Object.Destroy(menu, 1f);
                         menu = null;
-                        referance = null;
+                        MenuSelectorSphere = null;
                     }
                     if (CalculateGrabState(ControllerInputPoller.instance.leftControllerIndexFloat, 0.1f) && menu != null)
                     {
@@ -179,10 +208,44 @@ namespace J0kersTrollMenu.ModMenu
 
                 if (buttonsActive[1] == true)
                 {
-                    Mods.Platforms();
+                    Mods.Rocket();
                 }
 
                 if (buttonsActive[2] == true)
+                {
+                    Mods.FlyAtPlayer();
+                }
+
+                if (buttonsActive[3] == true)
+                {
+                    Mods.CopyMovement();
+                }
+
+                if (buttonsActive[4] == true)
+                {
+                    Mods.FreezeAll();
+                }
+                else
+                {
+                    Mods.FreezeAllOff();
+                }
+
+                if (buttonsActive[5] == true)
+                {
+                    Mods.RigGun();
+                }
+
+                if (buttonsActive[6] == true)
+                {
+                    Mods.Bees();
+                }
+
+                if (buttonsActive[7] == true)
+                {
+                    Mods.AutoFunnyRun();
+                }
+
+                if (buttonsActive[8] == true)
                 {
                     Mods.Speed();
                 }
@@ -191,16 +254,12 @@ namespace J0kersTrollMenu.ModMenu
                     Mods.SpeedFix();
                 }
 
-                if (buttonsActive[3] == true)
+                if (buttonsActive[9] == true)
                 {
-                    Mods.LongArms();
-                }
-                else
-                {
-                    Mods.LongArmsFix();
+                    Mods.Platforms();
                 }
 
-                if (buttonsActive[4] == true)
+                if (buttonsActive[10] == true)
                 {
                     Mods.NoGrav();
                 }
@@ -209,7 +268,50 @@ namespace J0kersTrollMenu.ModMenu
                     Mods.NoGravOff();
                 }
 
-                if (buttonsActive[5] == true)
+                if (buttonsActive[11] == true)
+                {
+                    Mods.Ghost();
+                }
+
+                if (buttonsActive[12] == true)
+                {
+                    Mods.Invis();
+                }
+
+                if (buttonsActive[13] == true)
+                {
+                    Mods.GhostTPose();
+                }
+
+                if (buttonsActive[14] == true)
+                {
+                    GorillaLocomotion.Player.Instance.disableMovement = false;
+                }
+
+                if (buttonsActive[15] == true)
+                {
+                    Mods.NoFinger();
+                }
+
+                if (buttonsActive[16] == true)
+                {
+                    Mods.SpawnMineGhost();
+                    buttonsActive[16] = false;
+                    Destroy(menu);
+                    menu = null;
+                    Draw();
+                }
+
+                if (buttonsActive[17] == true)
+                {
+                    Mods.OpenGates();
+                    buttonsActive[17] = false;
+                    Destroy(menu);
+                    menu = null;
+                    Draw();
+                }
+
+                if (buttonsActive[18] == true)
                 {
                     #region Bone-ESP
                     Material material = new Material(Shader.Find("GUI/Text Shader"));
@@ -217,8 +319,7 @@ namespace J0kersTrollMenu.ModMenu
 
                     foreach (VRRig vrrig in GorillaParent.instance.vrrigs)
                     {
-                        bool flag = !vrrig.isOfflineVRRig && !vrrig.isMyPlayer;
-                        if (flag)
+                        if (!vrrig.isOfflineVRRig && !vrrig.isMyPlayer)
                         {
 
                             if (!vrrig.head.rigTarget.gameObject.GetComponent<LineRenderer>())
@@ -256,8 +357,7 @@ namespace J0kersTrollMenu.ModMenu
                 {
                     foreach (VRRig vrrig in GorillaParent.instance.vrrigs)
                     {
-                        bool flag = !vrrig.isOfflineVRRig && !vrrig.isMyPlayer;
-                        if (flag)
+                        if (!vrrig.isOfflineVRRig && !vrrig.isMyPlayer)
                         {
                             for (int i = 0; i < bones.Count(); i += 2)
                             {
@@ -275,84 +375,9 @@ namespace J0kersTrollMenu.ModMenu
                     #endregion
                 }
 
-                if (buttonsActive[6] == true)
-                {
-                    Mods.Ghost();
-                }
-
-                if (buttonsActive[7] == true)
-                {
-                    Mods.Invis();
-                }
-
-                if (buttonsActive[8] == true)
-                {
-                    Mods.GhostFlight();
-                }
-
-                if (buttonsActive[9] == true)
-                {
-                    Mods.FlyAtPlayer();
-                }
-
-                if (buttonsActive[10] == true)
-                {
-                    Mods.PlayerHoldMe();
-                }
-
-                if (buttonsActive[11] == true)
-                {
-                    Mods.RigGun();
-                }
-
-                if (buttonsActive[12] == true)
-                {
-                    Mods.NoFinger();
-                }
-
-                if (buttonsActive[13] == true)
-                {
-                    PhotonNetwork.LocalPlayer.NickName = "ㅤ";
-                    GorillaComputer.instance.savedName = "ㅤ";
-                    GorillaComputer.instance.currentName = "ㅤ";
-                    buttonsActive[13] = false;
-                    Destroy(menu);
-                    menu = null;
-                    Draw();
-                }
-
-                if (buttonsActive[14] == true)
-                {
-                    Mods.AutoFunnyRun();
-                }
-
-                if (buttonsActive[15] == true)
-                {
-                    Mods.Bees();
-                }
-
-                if (buttonsActive[16] == true)
-                {
-                    Mods.GhostTPose();
-                }
-
-                if (buttonsActive[17] == true)
-                {
-                    GorillaLocomotion.Player.Instance.disableMovement = false;
-                }
-
-                if (buttonsActive[18] == true)
-                {
-                    Mods.SpawnMineGhost();
-                    buttonsActive[18] = false;
-                    Destroy(menu);
-                    menu = null;
-                    Draw();
-                }
-
                 if (buttonsActive[19] == true)
                 {
-                    Mods.OpenGates();
+                    Mods.RandomGhostCode();
                     buttonsActive[19] = false;
                     Destroy(menu);
                     menu = null;
@@ -361,38 +386,54 @@ namespace J0kersTrollMenu.ModMenu
 
                 if (buttonsActive[20] == true)
                 {
-                    Mods.RandomGhostCode();
-                    buttonsActive[20] = false;
-                    Destroy(menu);
-                    menu = null;
-                    Draw();
+                    Mods.AnnoyPlayerGun();
                 }
 
                 if (buttonsActive[21] == true)
                 {
-                    Mods.TimeYup();
-                    buttonsActive[21] = false;
-                    Destroy(menu);
-                    menu = null;
-                    Draw();
-                }              
+                    Mods.WaterSplashHands();
+                }
 
                 if (buttonsActive[22] == true)
                 {
-                    GameObject.Find("LeaveButton").SetActive(false);
-                    GameObject.Find("LeaveButtonLine").SetActive(false);
-                }
-                else
-                {
-                    GameObject.Find("LeaveButton").SetActive(true);
-                    GameObject.Find("LeaveButtonLine").SetActive(true);
+                    Mods.WaterSplashBody();
                 }
 
                 if (buttonsActive[23] == true)
                 {
-                    NotifiLib.ClearAllNotifications();
-                    NotifiLib.ClearPastNotifications(10);
+                    buttonsActive[0] = false;
+                    buttonsActive[1] = false;
+                    buttonsActive[2] = false;
+                    buttonsActive[3] = false;
+                    buttonsActive[4] = false;
+                    buttonsActive[5] = false;
+                    buttonsActive[6] = false;
+                    buttonsActive[7] = false;
+                    buttonsActive[8] = false;
+                    buttonsActive[9] = false;
+                    buttonsActive[10] = false;
+                    buttonsActive[11] = false;
+                    buttonsActive[12] = false;
+                    buttonsActive[13] = false;
+                    buttonsActive[14] = false;
+                    buttonsActive[15] = false;
+                    buttonsActive[16] = false;
+                    buttonsActive[17] = false;
+                    buttonsActive[18] = false;
+                    buttonsActive[19] = false;
+                    buttonsActive[20] = false;
+                    buttonsActive[21] = false;
+                    buttonsActive[22] = false;
                     buttonsActive[23] = false;
+                    buttonsActive[24] = false;
+                    buttonsActive[25] = false;
+                    buttonsActive[26] = false;
+                    buttonsActive[27] = false;
+                    buttonsActive[28] = false;
+                    buttonsActive[29] = false;
+                    buttonsActive[30] = false;
+                    buttonsActive[31] = false;
+                    buttonsActive[32] = false;
                     Destroy(menu);
                     menu = null;
                     Draw();
@@ -400,25 +441,37 @@ namespace J0kersTrollMenu.ModMenu
 
                 if (buttonsActive[24] == true)
                 {
-                    NotifiLib.IsEnabled = false;
-                    buttonsActive[24] = false;
-                    Destroy(menu);
-                    menu = null;
-                    Draw();
+                    GameObject.Find("LeaveButton").SetActive(false);
+                    GameObject.Find("LeaveButtonLine").SetActive(false);
+                    GameObject.Find("LeaveButtonText").SetActive(false);
+
+                    GameObject.Find("HomeButton").SetActive(false);
+                    GameObject.Find("HomeButtonLine").SetActive(false);
+                    GameObject.Find("HomeButtonText").SetActive(false);
+                }
+                else
+                {
+                    GameObject.Find("LeaveButton").SetActive(true);
+                    GameObject.Find("LeaveButtonLine").SetActive(true);
+                    GameObject.Find("LeaveButtonText").SetActive(true);
+
+                    GameObject.Find("HomeButton").SetActive(true);
+                    GameObject.Find("HomeButtonLine").SetActive(true);
+                    GameObject.Find("HomeButtonText").SetActive(true);
                 }
 
                 if (buttonsActive[25] == true)
                 {
-                    NotifiLib.IsEnabled = true;
-                    buttonsActive[25] = false;
-                    Destroy(menu);
-                    menu = null;
-                    Draw();
+                    DoFov = false;
+                }
+                else
+                {
+                    DoFov = true;
                 }
 
                 if (buttonsActive[26] == true)
                 {
-                    Mods.SpoofName();
+                    Mods.GetInfo();
                     buttonsActive[26] = false;
                     Destroy(menu);
                     menu = null;
@@ -427,48 +480,96 @@ namespace J0kersTrollMenu.ModMenu
 
                 if (buttonsActive[27] == true)
                 {
-                    Mods.AntiReportDisconnect();
+                    NotifiLib.ClearAllNotifications();
+                    NotifiLib.ClearPastNotifications(10);
+                    buttonsActive[27] = false;
+                    Destroy(menu);
+                    menu = null;
+                    Draw();
+                }
+
+                if (buttonsActive[28] == true)
+                {
+                    NotifiLib.IsEnabled = false;
+                    buttonsActive[28] = false;
+                    Destroy(menu);
+                    menu = null;
+                    Draw();
+                }
+
+                if (buttonsActive[29] == true)
+                {
+                    NotifiLib.IsEnabled = true;
+                    buttonsActive[29] = false;
+                    Destroy(menu);
+                    menu = null;
+                    Draw();
+                }
+
+                if (buttonsActive[30] == true)
+                {
+                    Mods.SpoofName();
+                    buttonsActive[30] = false;
+                    Destroy(menu);
+                    menu = null;
+                    Draw();
+                }
+
+                if (buttonsActive[31] == true)
+                {
+                    DOAntiReport = true;
+                    DOAntiReportOculus = true; // THIS DONT WORK =(
+                }
+                else
+                {
+                    DOAntiReport = false;
+                    DOAntiReportOculus = false; // THIS DONT WORK =(
                 }
                 #endregion
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[J0kers ERROR Log] : {ex}");
+                Debug.LogError($"[J0ker Menu Error Log] : {ex}");
             }
         }
 
+        #region ButtonsActive
         public static string[] buttons = new string[]
         {
-            "Fly & NoClip [B]",
-            "Plats [B]",
-            "Speed Boost",
-            "Long Arms",
-            "No Grav",
-            "Bone ESP",
-            "Ghost Monke [B]",
-            "Invis Monke [T]",
-            "Ghost Fly [B]",
+            "Fly + Noclip [B]",
+            "Rocket [B]",
             "Fly At Player Gun",
-            "Player Hold Gun",
+            "Copy Player Gun",
+            "Freeze Players",
             "Rig Gun",
-            "No Finger Move",
-            "No Name",
-            "Auto Run [T]",
-            "Bees [T]",
-            "Ghost T-Pose [B]",
+            "Bees [RT]",
+            "Auto Run [RT]",
+            "Speed Boost",
+            "Platforms [Secondary]",
+            "No Grav",
+            "Ghost Monkey [B]",
+            "Invisable Rig [RT]",
+            "T-Pose [B]",
             "No Tag Freeze",
+            "No Finger Movement",
             "Spawn Skeleton [SS] [CAVES]",
             "Open Gates [SS] [Caves]",
+            "Bone ESP",
             "Random Ghost Code",
-            "Time Change [CS]",
-            "Disable Leave",
+            "Annoy Player Gun",
+            "Water Splash Hands [L/R] [B]",
+            "Water Splash Body [B]",
+            "Disable All Mods",
+            "Disable Top Buttons",
+            "Disable FOV",
+            "Grab All Info",
             "Notifications [Clear]",
             "Notifications [Off]",
             "Notifications [On]",
             "Spoof Name",
             "Anti Report [Disconnect]",
         };
-        #region ButtonsActive
+
         public static bool?[] buttonsActive = new bool?[]
         {
             false,false,false,false,false, false,false,false,false,false,false, false,false,false,false,false,false, false,false,false,false,false,false, false,false,false,false,false,false, false,false,false,false,false,false, false,false,false,false,false,false, false,false,false,false,false, false,false,false,false,false, false,false,false,false,false, false,false,false,false,false, false,false,false,false,false, false,false,false,false,false, false,false,false,false,false, false,false,false,false,false, false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,
@@ -476,7 +577,7 @@ namespace J0kersTrollMenu.ModMenu
         };
         #endregion
 
-        #region Draw
+        #region Buttons
         private static void AddButton(float offset, string text)
         {
             GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -537,72 +638,6 @@ namespace J0kersTrollMenu.ModMenu
             component.localPosition = new Vector3(0.064f, 0f, 0.211f - offset / 2.55f);
             component.rotation = Quaternion.Euler(new Vector3(180f, 90f, 90f));
         }
-        public static void Draw()
-        {
-            MenuPageActive = "1";
-
-            menu = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            UnityEngine.Object.Destroy(menu.GetComponent<Rigidbody>());
-            UnityEngine.Object.Destroy(menu.GetComponent<BoxCollider>());
-            UnityEngine.Object.Destroy(menu.GetComponent<Renderer>());
-            menu.transform.localScale = new Vector3(0.1f, 0.3f, 0.4f);
-            menu.name = "Menu";
-
-            GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            UnityEngine.Object.Destroy(gameObject.GetComponent<Rigidbody>());
-            UnityEngine.Object.Destroy(gameObject.GetComponent<BoxCollider>());
-            gameObject.transform.parent = menu.transform;
-            gameObject.transform.rotation = Quaternion.identity;
-            gameObject.transform.localScale = new Vector3(0.1f, 0.86f, 0.6f);
-            gameObject.name = "Menucolor";
-            gameObject.transform.position = new Vector3(0.05f, 0f, 0.03f);
-
-            GameObject Outline = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            UnityEngine.Object.Destroy(Outline.GetComponent<Rigidbody>());
-            UnityEngine.Object.Destroy(Outline.GetComponent<BoxCollider>());
-            Outline.transform.parent = menu.transform;
-            Outline.GetComponent<Renderer>().material.shader = Shader.Find("UI/Default");
-            Outline.transform.rotation = Quaternion.identity;
-            Outline.transform.localScale = new Vector3(0.09f, 0.87f, -0.61f);
-            Outline.name = "MenuOutline";
-            Outline.transform.position = new Vector3(0.05f, 0f, 0.03f);
-
-            canvasObj = new GameObject();
-            canvasObj.transform.parent = menu.transform;
-            canvasObj.name = "j0kercanvas";
-            Canvas canvas = canvasObj.AddComponent<Canvas>();
-            CanvasScaler canvasScaler = canvasObj.AddComponent<CanvasScaler>();
-            canvasObj.AddComponent<GraphicRaycaster>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            canvasScaler.dynamicPixelsPerUnit = 1000f;
-
-            GameObject gameObject2 = new GameObject();
-            gameObject2.transform.parent = canvasObj.transform;
-            gameObject2.name = "Title";
-            MenuTitle = gameObject2.AddComponent<Text>();
-            MenuTitle.font = Resources.GetBuiltinResource(typeof(Font), "Arial.ttf") as Font;
-            MenuTitle.text = "J0ker Troll Menu";
-            MenuTitle.name = "MainTitle";
-            MenuTitle.fontSize = 1;
-            MenuTitle.color = Color.white;
-            MenuTitle.fontStyle = FontStyle.Italic;
-            MenuTitle.alignment = TextAnchor.MiddleCenter;
-            MenuTitle.resizeTextForBestFit = true;
-            MenuTitle.resizeTextMinSize = 0;
-            RectTransform component = MenuTitle.GetComponent<RectTransform>();
-            component.localPosition = Vector3.zero;
-            component.sizeDelta = new Vector2(0.28f, 0.05f);
-            component.position = new Vector3(0.06f, 0f, 0.175f);
-            component.rotation = Quaternion.Euler(new Vector3(180f, 90f, 90f));
-
-            AddPageButtons();
-            string[] array2 = buttons.Skip(pageNumber * pageSize).Take(pageSize).ToArray();
-            for (int i = 0; i < array2.Length; i++)
-            {
-                AddButton((float)i * 0.13f + 0.26f, array2[i]);
-            }
-        }
-        static Text MenuTitle;
 
         private static void AddPageButtons()
         {
@@ -704,7 +739,7 @@ namespace J0kersTrollMenu.ModMenu
 
             #endregion
 
-
+            #region Leave
             GameObject gameObject5 = GameObject.CreatePrimitive(PrimitiveType.Cube);
             gameObject5.GetComponent<Renderer>().material.color = Color.black;
             Destroy(gameObject5.GetComponent<Rigidbody>());
@@ -712,9 +747,9 @@ namespace J0kersTrollMenu.ModMenu
             gameObject5.transform.parent = menu.transform;
             gameObject5.transform.rotation = Quaternion.identity;
             gameObject5.name = "LeaveButton";
-            gameObject5.transform.localScale = new Vector3(0.09f, 0.7682f, 0.075f);
-            gameObject5.transform.localPosition = new Vector3(0.56f, -0.0076f, 0.5755f);
-            gameObject5.AddComponent<BtnCollider>().relatedText = "Cum";
+            gameObject5.transform.localScale = new Vector3(0.09f, 0.2682f, 0.075f);
+            gameObject5.transform.localPosition = new Vector3(0.56f, 0.1924f, 0.5755f);
+            gameObject5.AddComponent<BtnCollider>().relatedText = "Leave";
             gameObject5.GetComponent<Renderer>().material.SetColor("_Color", Color.black);
 
 
@@ -726,14 +761,14 @@ namespace J0kersTrollMenu.ModMenu
             LeaveOutline.transform.parent = menu.transform;
             LeaveOutline.transform.rotation = Quaternion.identity;
             LeaveOutline.name = "LeaveButtonLine";
-            LeaveOutline.transform.localScale = new Vector3(0.08f, 0.7783f, 0.079f);
-            LeaveOutline.transform.localPosition = new Vector3(0.56f, -0.0076f, 0.5755f);
+            LeaveOutline.transform.localScale = new Vector3(0.08f, 0.2783f, 0.079f);
+            LeaveOutline.transform.localPosition = new Vector3(0.56f, 0.1924f, 0.5755f);
 
             #endregion
 
             GameObject gameObject6 = new GameObject();
             gameObject6.transform.parent = canvasObj.transform;
-            gameObject6.name = "LeaveButton";
+            gameObject6.name = "LeaveButtonText";
             Text text3 = gameObject6.AddComponent<Text>();
             text3.font = Resources.GetBuiltinResource(typeof(Font), "Arial.ttf") as Font;
             text3.text = "Leave";
@@ -744,14 +779,61 @@ namespace J0kersTrollMenu.ModMenu
             RectTransform component3 = text3.GetComponent<RectTransform>();
             component3.localPosition = Vector3.zero;
             component3.sizeDelta = new Vector2(0.2f, 0.03f);
-            component3.localPosition = new Vector3(0.064f, 0, 0.23f);
+            component3.localPosition = new Vector3(0.064f, 0.06f, 0.23f);
             component3.rotation = Quaternion.Euler(new Vector3(180f, 90f, 90f));
             component3.localScale = new Vector3(1f, 1f, 1f);
+            #endregion
+
+            #region Home
+            GameObject gameObject8 = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            gameObject8.GetComponent<Renderer>().material.color = Color.black;
+            Destroy(gameObject8.GetComponent<Rigidbody>());
+            gameObject8.GetComponent<BoxCollider>().isTrigger = true;
+            gameObject8.transform.parent = menu.transform;
+            gameObject8.transform.rotation = Quaternion.identity;
+            gameObject8.name = "HomeButton";
+            gameObject8.transform.localScale = new Vector3(0.09f, 0.2682f, 0.075f);
+            gameObject8.transform.localPosition = new Vector3(0.56f, -0.2076f, 0.5755f);
+            gameObject8.AddComponent<BtnCollider>().relatedText = "Home";
+            gameObject8.GetComponent<Renderer>().material.SetColor("_Color", Color.black);
+
+
+            #region Outline 
+
+            GameObject HomeOutline = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            HomeOutline.GetComponent<Renderer>().material.shader = Shader.Find("UI/Default");
+            Destroy(HomeOutline.GetComponent<Rigidbody>());
+            HomeOutline.transform.parent = menu.transform;
+            HomeOutline.transform.rotation = Quaternion.identity;
+            HomeOutline.name = "HomeButtonLine";
+            HomeOutline.transform.localScale = new Vector3(0.08f, 0.2783f, 0.079f);
+            HomeOutline.transform.localPosition = new Vector3(0.56f, -0.2076f, 0.5755f);
+
+            #endregion
+
+            GameObject gameObject69 = new GameObject();
+            gameObject69.transform.parent = canvasObj.transform;
+            gameObject69.name = "HomeButtonText";
+            Text text44 = gameObject69.AddComponent<Text>();
+            text44.font = Resources.GetBuiltinResource(typeof(Font), "Arial.ttf") as Font;
+            text44.text = "Home";
+            text44.fontSize = 1;
+            text44.alignment = TextAnchor.MiddleCenter;
+            text44.resizeTextForBestFit = true;
+            text44.resizeTextMinSize = 0;
+            RectTransform component33 = text44.GetComponent<RectTransform>();
+            component33.localPosition = Vector3.zero;
+            component33.sizeDelta = new Vector2(0.2f, 0.03f);
+            component33.localPosition = new Vector3(0.064f, -0.06f, 0.23f);
+            component33.rotation = Quaternion.Euler(new Vector3(180f, 90f, 90f));
+            component33.localScale = new Vector3(1f, 1f, 1f);
+            #endregion
         }
+
         public static void Toggle(string relatedText)
         {
             int num = (buttons.Length + pageSize - 1) / pageSize;
-            if (relatedText == "Cum")
+            if (relatedText == "Leave")
             {
                 PhotonNetwork.Disconnect();
                 Destroy(menu);
@@ -759,6 +841,16 @@ namespace J0kersTrollMenu.ModMenu
                 Draw();
                 return;
             }
+
+            if (relatedText == "Home")
+            {
+                pageNumber = 0;
+                Destroy(menu);
+                menu = null;
+                Draw();
+                return;
+            }
+
             if (relatedText == "NextPage")
             {
                 if (pageNumber < num - 1)
@@ -807,6 +899,142 @@ namespace J0kersTrollMenu.ModMenu
             }
         }
 
+        #endregion
+
+        #region Draw
+        public static void Draw()
+        {
+            MenuPageActive = "1";
+
+            menu = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            UnityEngine.Object.Destroy(menu.GetComponent<Rigidbody>());
+            UnityEngine.Object.Destroy(menu.GetComponent<BoxCollider>());
+            UnityEngine.Object.Destroy(menu.GetComponent<Renderer>());
+            menu.transform.localScale = new Vector3(0.1f, 0.3f, 0.4f);
+            menu.name = "Menu";
+
+            GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            UnityEngine.Object.Destroy(gameObject.GetComponent<Rigidbody>());
+            UnityEngine.Object.Destroy(gameObject.GetComponent<BoxCollider>());
+            gameObject.transform.parent = menu.transform;
+            gameObject.transform.rotation = Quaternion.identity;
+            gameObject.transform.localScale = new Vector3(0.1f, 0.86f, 0.6f);
+            gameObject.name = "Menucolor";
+            gameObject.transform.position = new Vector3(0.05f, 0f, 0.03f);
+
+            GameObject Outline = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            UnityEngine.Object.Destroy(Outline.GetComponent<Rigidbody>());
+            UnityEngine.Object.Destroy(Outline.GetComponent<BoxCollider>());
+            Outline.transform.parent = menu.transform;
+            Outline.GetComponent<Renderer>().material.shader = Shader.Find("UI/Default");
+            Outline.transform.rotation = Quaternion.identity;
+            Outline.transform.localScale = new Vector3(0.09f, 0.87f, -0.61f);
+            Outline.name = "MenuOutline";
+            Outline.transform.position = new Vector3(0.05f, 0f, 0.03f);
+
+            canvasObj = new GameObject();
+            canvasObj.transform.parent = menu.transform;
+            canvasObj.name = "j0kercanvas";
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            CanvasScaler canvasScaler = canvasObj.AddComponent<CanvasScaler>();
+            canvasObj.AddComponent<GraphicRaycaster>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvasScaler.dynamicPixelsPerUnit = 1000f;
+
+            GameObject gameObject2 = new GameObject();
+            gameObject2.transform.parent = canvasObj.transform;
+            gameObject2.name = "Title";
+            MenuTitle = gameObject2.AddComponent<Text>();
+            MenuTitle.font = Resources.GetBuiltinResource(typeof(Font), "Arial.ttf") as Font;
+            if (DoRisky == false)
+            {
+                MenuTitle.text = "J0ker Troll Menu - Page [ <color=cyan>" + pageNumber.ToString() + "</color> ]";
+            }
+            else if (DoRisky == true)
+            {
+                MenuTitle.text = "J0ker Troll Menu - <color=red>RISKY</color> [R] =<color=red> RISKY!!!</color>";
+            }
+            MenuTitle.name = "MainTitle";
+            MenuTitle.fontSize = 1;
+            MenuTitle.color = Color.white;
+            MenuTitle.fontStyle = FontStyle.Italic;
+            MenuTitle.alignment = TextAnchor.MiddleCenter;
+            MenuTitle.resizeTextForBestFit = true;
+            MenuTitle.resizeTextMinSize = 0;
+            RectTransform component = MenuTitle.GetComponent<RectTransform>();
+            component.localPosition = Vector3.zero;
+            component.sizeDelta = new Vector2(0.28f, 0.05f);
+            component.position = new Vector3(0.06f, 0f, 0.175f);
+            component.rotation = Quaternion.Euler(new Vector3(180f, 90f, 90f));
+
+            AddPageButtons();
+            string[] array2 = buttons.Skip(pageNumber * pageSize).Take(pageSize).ToArray();
+            for (int i = 0; i < array2.Length; i++)
+            {
+                AddButton((float)i * 0.13f + 0.26f, array2[i]);
+            }
+        }
+        static Text MenuTitle;
+
+        [Obsolete]
+        static void DrawTextB4Menu()
+        {
+            AHH = "2";
+            CanvasHolder = new GameObject("CanvasHolder");
+
+            // changed thingys
+            CanvasHolder.transform.SetParent(GorillaLocomotion.Player.Instance.leftControllerTransform);
+
+            // adds text
+            CanvasHolder.AddComponent<Canvas>();
+
+            //change name of canvas
+            CanvasHolder.GetComponent<Canvas>().name = "GorillaUI";
+
+            // load text
+            GameObject TextObject = new GameObject("Text");
+            TextObject.transform.SetParent(CanvasHolder.transform, false);
+            TextObject.AddComponent<CanvasRenderer>();
+
+            //changed text and font
+            Loltext = TextObject.AddComponent<Text>();
+            Loltext.font = GameObject.Find("COC Text").GetComponent<Text>().font;
+            Loltext.name = "Loltext";
+            Loltext.fontSize = 5;
+            Loltext.fontStyle = FontStyle.Italic;
+            Loltext.alignment = TextAnchor.MiddleCenter;
+            Loltext.resizeTextForBestFit = true;
+            Loltext.color = Color.white;
+            Loltext.resizeTextMinSize = 0;
+            Loltext.name = "LolText";
+            Loltext.transform.localPosition = new Vector3(0f, 25f, 0f);
+            Loltext.transform.rotation = Quaternion.EulerRotation(70f, 0f, 0f);
+            Loltext.text = "J0KER TROLL MENU\n--------------------\n<color=red>OPEN MENU WITH TRIGGER\nMORE AT:\nj0kermodz.lol & discord.gg/j0kermodz</color>\n7/15/2024<color=green> FULLY UD!</color>";
+            obj = GameObject.Find("GorillaUI/Text");
+            obj.name = "GorillaUI Text";
+            obj = GameObject.Find("GorillaUI/GorillaUI Text");
+
+            //Changes text colour
+            obj.GetComponent<Text>().color = Color.white;
+        }
+
+        static void DrawWatchMenu()
+        {
+            WatchEnable.SetActive(true); // Enable Watch
+            WatchColor.GetComponent<SkinnedMeshRenderer>().material.color = Color.black; // Watch Color
+            WatchGlassColor.GetComponent<MeshRenderer>().material.color = Color.white; // Watch Glass Color
+
+            // If your gonna skid this i feel bad for you 💀💀💀
+            // This is not done please dont take my idea! The full watch will be here when its done then u can have source!
+        }
+
+        static GameObject WatchEnable = GameObject.Find("Player Objects/Local VRRig/Local Gorilla Player/rig/body/shoulder.L/upper_arm.L/forearm.L/hand.L/LMAEO.LEFT.");
+        static GameObject WatchColor = GameObject.Find("Player Objects/Local VRRig/Local Gorilla Player/rig/body/shoulder.L/upper_arm.L/forearm.L/hand.L/LMAEO.LEFT./ScubaWatch");
+        static GameObject WatchGlassColor = GameObject.Find("Player Objects/Local VRRig/Local Gorilla Player/rig/body/shoulder.L/upper_arm.L/forearm.L/hand.L/LMAEO.LEFT./ScubaWatchBone/ScubaWatchGlass");
+        private static GameObject CanvasHolder;
+        private static GameObject obj;
+        static Text Loltext;
+
         static void UpdateBoards()
         {
             Plugin.boardmat = new Material(Shader.Find("GorillaTag/UberShader"));
@@ -824,31 +1052,54 @@ namespace J0kersTrollMenu.ModMenu
                         {
                             AtlasBG.GetComponent<Renderer>().material = boardmat;
                         }
+                        if (index == 1)
+                        {
+                            AtlasBG.GetComponent<Renderer>().material = boardmat;
+                        }
                     }
+                }
+
+                if (GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/GorillaComputerObject/ComputerUI/monitor/monitorScreen/Data").GetComponent<Text>().text.Contains("GORILLA OS"))
+                {
+                    GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/GorillaComputerObject/ComputerUI/monitor/monitorScreen/Data").GetComponent<Text>().text = "J0KER TROLL MENU\n\n<color=cyan>discord.gg/j0kermodz\nj0kermodz.lol</color>\n\nFIND J0KER ON YT AND TIKTOK\n\nYT: J0kerModZ\n\nTIKTOK: j0kermodz_real";
                 }
                 GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/UI/CodeOfConduct_Group/CodeOfConduct").GetComponent<Text>().text = "< J0ker's Troll Menu >";
                 GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/UI/motd").GetComponent<Text>().text = "< J0ker's Troll Menu >";
-                GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/UI/CodeOfConduct_Group/CodeOfConduct/COC Text").GetComponent<Text>().text = "THAKNS FOR USING J0KER TROLL MENU!\nTHIS MENU IS FREE IF YOU BOUGHT IT YOU GOT SCAMMED! THIS MENU IS OPEN SOURCE!\n\nWEBSITE:\n<color=cyan>j0kermodz.lol</color>\n\nCREDS:\niidk - JumpScare Gun, Anti Report <3\nLARS: Notification Lib\n\nPLAYER NAME: " + PhotonNetwork.LocalPlayer.NickName + "\nMASTER: " + PhotonNetwork.MasterClient + "\nFPS: " + ((int)(1f / Time.smoothDeltaTime)).ToString() + "\nPing: " + PhotonNetwork.GetPing().ToString();
+                GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/UI/CodeOfConduct_Group/CodeOfConduct/COC Text").GetComponent<Text>().text = "THAKNS FOR USING J0KER TROLL MENU!\nTHIS MENU IS FREE IF YOU BOUGHT IT YOU GOT SCAMMED! THIS MENU IS OPEN SOURCE!\n\nSITES:\n<color=cyan>j0kermodz.lol & discord.gg/j0kermodz</color>\n\nCREDS:\niidk - JumpScare Gun, Anti Report <3\nLARS: Notification Lib\n\nPLAYER NAME: " + PhotonNetwork.LocalPlayer.NickName + "\nFPS: " + ((int)(1f / Time.smoothDeltaTime)).ToString() + "\nPing: " + PhotonNetwork.GetPing().ToString();
                 GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/Wall Monitors Screens/wallmonitorforest").GetComponent<Renderer>().material = boardmat;
                 GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/GorillaComputerObject/ComputerUI/monitor/monitorScreen").GetComponent<MeshRenderer>().material = boardmat;
+                GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/GorillaComputerObject/ComputerUI/monitor").GetComponent<MeshRenderer>().material = boardmat;
+                GameObject.Find("Environment Objects/LocalObjects_Prefab/TreeRoom/TreeRoomInteractables/GorillaComputerObject/ComputerUI/keyboard (1)").GetComponent<MeshRenderer>().material = boardmat;
             }
         }
+
 
         static void NewCam()
         {
             GameObject cam;
             Camera fovcam;
 
-            cam = GameObject.Find("Shoulder Camera");
-            fovcam = cam.GetComponent<Camera>();
-            bool flag = fovcam.fieldOfView != 120f;
-            bool flag2 = flag;
-            if (flag2)
+            if (DoFov == true)
             {
-                fovcam.fieldOfView = 135f;
-                cam.transform.SetParent(Camera.main.transform);
-                cam.transform.localPosition = new Vector3(0f, 0f, 0f);
-                cam.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                cam = GameObject.Find("Shoulder Camera");
+                fovcam = cam.GetComponent<Camera>();
+                if (fovcam.fieldOfView != 135f)
+                {
+                    fovcam.fieldOfView = 120f;
+                    cam.transform.SetParent(Camera.main.transform);
+                    cam.transform.localPosition = new Vector3(0f, 0f, 0f);
+                    cam.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                }
+            }
+            else if (DoFov == false)
+            {
+                cam = GameObject.Find("Shoulder Camera");
+                fovcam = cam.GetComponent<Camera>();
+                if (fovcam.fieldOfView != 60f)
+                {
+                    fovcam.fieldOfView = 60f;
+                    cam.transform.SetParent(Camera.main.transform);
+                }
             }
         }
 
@@ -856,12 +1107,38 @@ namespace J0kersTrollMenu.ModMenu
         {
             sendOnAwake = this;
         }
-    } 
 
-    #endregion
+        static bool DoRisky = false;
+        static bool DoFov = true;
+        public static string AHH = "1";
 
-    #region TimedBehaviour
-    public class TimedBehaviour : MonoBehaviour
+
+        #endregion
+
+        #region Event Received 
+        public static void EventReceived(EventData data)
+        {
+            try
+            {
+                if (AntiOculusReport && data.Code == 50)
+                {
+                    object[] args = (object[])data.CustomData;
+                    if ((string)args[0] == PhotonNetwork.LocalPlayer.UserId)
+                    {
+                        PhotonNetwork.Disconnect();
+                        NotifiLib.SendNotification("Someone attempted to report you using the Oculus menu, you have been disconnected.");
+                        Mods.RpcCleanUp();
+                    }
+                }
+            }
+            catch { }
+        }
+    }
+
+        #endregion
+
+        #region TimedBehaviour
+        public class TimedBehaviour : MonoBehaviour
     {
         public virtual void Start()
         {
@@ -925,13 +1202,12 @@ namespace J0kersTrollMenu.ModMenu
     }
     #endregion
 
-
     #region BtnCollider
     internal class BtnCollider : MonoBehaviour
     {
         private void OnTriggerEnter(Collider collider)
         {
-            if (Time.frameCount >= Plugin.framePressCooldown + 10 && collider.gameObject.name == "pointer")
+            if (Time.frameCount >= Plugin.framePressCooldown + 10 && collider.gameObject.name == "GunSphere")
             {
                 GorillaTagger.Instance.offlineVRRig.PlayHandTapLocal(66, false, 0.1f);
                 GorillaTagger.Instance.StartVibration(false, GorillaTagger.Instance.tagHapticStrength / 2, GorillaTagger.Instance.tagHapticDuration / 2);
