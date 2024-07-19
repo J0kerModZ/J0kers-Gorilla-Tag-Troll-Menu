@@ -3,6 +3,7 @@ using ExitGames.Client.Photon;
 using Fusion;
 using GorillaNetworking;
 using GorillaTag;
+using GorillaTagScripts;
 using HarmonyLib;
 using J0kersTrollMenu.ModMenu;
 using J0kersTrollMenu.Notifications;
@@ -75,6 +76,22 @@ namespace J0kersTrollMenu.MenuMods
             }
             return monkeyeAI;
         }
+
+        public static BuilderPiece[] BuilderPieces = null;
+        public static BuilderPiece[] FindPieces()
+        {
+            if (Time.time > Timer)
+            {
+                BuilderPieces = null;
+                Timer = Time.time + 1f;
+            }
+            if (BuilderPieces == null)
+            {
+                BuilderPieces = UnityEngine.Object.FindObjectsOfType<BuilderPiece>();
+            }
+            return BuilderPieces;
+        }
+
 
         public static void GetOwnership(PhotonView view) // Cred IIDK <3
         {
@@ -344,14 +361,14 @@ namespace J0kersTrollMenu.MenuMods
                     GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * -1f);
                     GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * 1f);
                     GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.rotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
-                                    // Fix For The hands rotation
-                Quaternion handRotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
+                    // Fix For The hands rotation
+                    Quaternion handRotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
 
-                Quaternion leftHandRotation = handRotation * Quaternion.Euler(0f, -1f, 0f) * Quaternion.Euler(0f, 0f, 80f); // 80f bc 90f makes them go down a bit
-                GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.rotation = leftHandRotation;
+                    Quaternion leftHandRotation = handRotation * Quaternion.Euler(0f, -1f, 0f) * Quaternion.Euler(0f, 0f, 80f); // 80f bc 90f makes FindPiece go down a bit
+                    GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.rotation = leftHandRotation;
 
-                Quaternion rightHandRotation = handRotation * Quaternion.Euler(0f, 1f, 0f) * Quaternion.Euler(0f, 0f, -80f); // ^^ Same here but negative ^^
-                GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.rotation = rightHandRotation;
+                    Quaternion rightHandRotation = handRotation * Quaternion.Euler(0f, 1f, 0f) * Quaternion.Euler(0f, 0f, -80f); // ^^ Same here but negative ^^
+                    GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.rotation = rightHandRotation;
                     GorillaTagger.Instance.offlineVRRig.transform.position = GunSphere.transform.position + new Vector3(0f, 1f, 0f);
                 }
 
@@ -415,7 +432,7 @@ namespace J0kersTrollMenu.MenuMods
                 // Fix For The hands rotation
                 Quaternion handRotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
 
-                Quaternion leftHandRotation = handRotation * Quaternion.Euler(0f, -1f, 0f) * Quaternion.Euler(0f, 0f, 80f); // 80f bc 90f makes them go down a bit
+                Quaternion leftHandRotation = handRotation * Quaternion.Euler(0f, -1f, 0f) * Quaternion.Euler(0f, 0f, 80f); // 80f bc 90f makes FindPiece go down a bit
                 GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.rotation = leftHandRotation;
 
                 Quaternion rightHandRotation = handRotation * Quaternion.Euler(0f, 1f, 0f) * Quaternion.Euler(0f, 0f, -80f); // ^^ Same here but negative ^^
@@ -425,6 +442,24 @@ namespace J0kersTrollMenu.MenuMods
             {
                 GorillaTagger.Instance.offlineVRRig.enabled = true;
             }
+        }
+
+        static void TposeSpin()
+        {
+            BallsOnHands();
+            LineToRig();
+            GorillaTagger.Instance.offlineVRRig.enabled = false;
+            Quaternion rotation = Quaternion.Euler(0f, 40 * Time.deltaTime, 0f);
+            GorillaTagger.Instance.offlineVRRig.transform.rotation *= rotation;
+            GorillaTagger.Instance.offlineVRRig.transform.position = new Vector3(-66.058f, 16.3358f, -82.357f);
+            GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * -1f);
+            GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.position = GorillaTagger.Instance.offlineVRRig.transform.position + (GorillaTagger.Instance.offlineVRRig.transform.right * 1f);
+            GorillaTagger.Instance.offlineVRRig.head.rigTarget.transform.rotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
+            Quaternion handRotation = GorillaTagger.Instance.offlineVRRig.transform.rotation;
+            Quaternion leftHandRotation = handRotation * Quaternion.Euler(0f, -1f, 0f) * Quaternion.Euler(0f, 0f, 80f);
+            GorillaTagger.Instance.offlineVRRig.leftHand.rigTarget.transform.rotation = leftHandRotation;
+            Quaternion rightHandRotation = handRotation * Quaternion.Euler(0f, 1f, 0f) * Quaternion.Euler(0f, 0f, -80f);
+            GorillaTagger.Instance.offlineVRRig.rightHand.rigTarget.transform.rotation = rightHandRotation;
         }
 
         public static void Invis()

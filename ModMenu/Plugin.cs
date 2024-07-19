@@ -223,11 +223,12 @@ namespace J0kersTrollMenu.ModMenu
 
                 if (buttonsActive[4] == true)
                 {
-                    Mods.FreezeAll();
-                }
-                else
-                {
-                    Mods.FreezeAllOff();
+                    //Mods.FreezeAll();
+                    NotifiLib.SendNotification("<color=red>THIS IS PATCHED WORKING ON A UPDATE!</color>");
+                    buttonsActive[4] = false;
+                    Destroy(menu);
+                    menu = null;
+                    Draw();
                 }
 
                 if (buttonsActive[5] == true)
@@ -540,7 +541,7 @@ namespace J0kersTrollMenu.ModMenu
             "Rocket [B]",
             "Fly At Player Gun",
             "Copy Player Gun",
-            "Freeze Players",
+            "Freeze Players [Patched]",
             "Rig Gun",
             "Bees [RT]",
             "Auto Run [RT]",
